@@ -7,9 +7,9 @@ void main() {
   testWidgets('renders DraggableImage.asset without crashing', (tester) async {
     await tester.pumpWidget(const MaterialApp(
       home: Scaffold(
-        body: DraggableImage.asset('assets/fake.png'),
+        body: DraggableImageWidget(imagePath: 'assets/image.jpg'),
       ),
     ));
-    expect(find.byType(DraggableImage), findsOneWidget);
+    expect(find.byType(DraggableImageWidget), findsOneWidget);
   });
 }

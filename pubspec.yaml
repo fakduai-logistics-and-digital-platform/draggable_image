@@ -1,6 +1,6 @@
 name: draggable_image
 description: A smooth pinch-to-zoom & drag image widget that snaps back with overlay for buttery performance.
-version: 0.1.1
+version: 0.1.2
 repository: https://github.com/fakduai-logistics-and-digital-platform/draggable_image
 homepage: https://github.com/fakduai-logistics-and-digital-platform/draggable_image
 issue_tracker: https://github.com/fakduai-logistics-and-digital-platform/draggable_image/issues

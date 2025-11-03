@@ -11,19 +11,15 @@ class MyApp extends StatelessWidget {
       title: 'draggable_image example',
       home: Scaffold(
         appBar: AppBar(title: const Text('draggable_image example')),
-        body: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            const Text('Asset'),
-            const SizedBox(height: 8),
-            DraggableImage.asset('assets/sample.jpg',
-                imageWidth: 300, imageHeight: 200),
-            const SizedBox(height: 24),
-            const Text('Network'),
-            const SizedBox(height: 8),
-            DraggableImage.network('https://picsum.photos/900',
-                imageWidth: 300, imageHeight: 200),
-          ],
+        body: Container(
+          color: Colors.white,
+          child: DraggableImageWidget(
+            imageWidth: double.infinity,
+            imageHeight: 1000,
+            imagePath: 'https://picsum.photos/900',
+            isNetworkImage: true,
+            isDebug: true,
+          ),
         ),
       ),
     );

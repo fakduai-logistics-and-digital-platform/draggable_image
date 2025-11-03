@@ -2,6 +2,9 @@
 
 A Flutter widget for dragging & pinch-to-zoom images with a smooth snap-back animation using Overlay.
 
+
+![image](example.gif)
+
 ## Quick Start
 
 ```dart
@@ -11,14 +14,13 @@ class Demo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: DraggableImage.network(
-        'https://picsum.photos/800',
-        imageWidth: 260,
-        imageHeight: 180,
-        minScale: 0.6,
-        maxScale: 3.0,
-      ),
-    );
+      child: DraggableImageWidget(
+            imageWidth: double.infinity,
+            imageHeight: 1000,
+            imagePath: 'https://picsum.photos/900',
+            isNetworkImage: true,
+            isDebug: true,
+    ));
   }
 }
 ```
