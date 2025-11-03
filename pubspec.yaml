@@ -1,0 +1,28 @@
+name: draggable_image
+description: A smooth pinch-to-zoom & drag image widget that snaps back with overlay for buttery performance.
+version: 0.1.0
+repository: https://github.com/yourname/draggable_image
+homepage: https://github.com/yourname/draggable_image
+issue_tracker: https://github.com/yourname/draggable_image/issues
+topics:
+  - image
+  - zoom
+  - gesture
+  - overlay
+  - widget
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+  flutter: ">=3.19.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_hooks: ^0.20.5
+  cached_network_image: ^3.3.1
+  skeletonizer: ^1.4.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
