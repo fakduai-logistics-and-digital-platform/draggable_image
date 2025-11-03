@@ -24,6 +24,10 @@ class Demo extends StatelessWidget {
             imagePath: 'https://picsum.photos/900',
             isNetworkImage: true,
             isDebug: true,
+            borderRadius: BorderRadius.circular(0),
+            fit: BoxFit.contain,
+            fitDoubleTap: BoxFit.fitHeight,
+            fitToggleCurve: Curves.easeOutCubic,
     ));
   }
 }

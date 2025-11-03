@@ -42,8 +42,10 @@ class _HomePageState extends State<HomePage> {
             isNetworkImage: true,
             isDebug: true,
             borderRadius: BorderRadius.circular(0),
+            fit: BoxFit.contain, // optional
+            fitDoubleTap: BoxFit.fitHeight, // optional
+            fitToggleCurve: Curves.easeOutCubic, // optional
 
-            // สำคัญ: ล็อก/ปลดล็อกการเลื่อนของ parent ระหว่าง two-finger gesture
             onGestureActiveChanged: (active) {
               setState(() => _lockScroll = active);
             },
