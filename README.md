@@ -3,7 +3,11 @@
 A Flutter widget for dragging & pinch-to-zoom images with a smooth snap-back animation using Overlay.
 
 
+<div align="center">
+
 ![image](example.gif)
+
+</div>
 
 ## Quick Start
 

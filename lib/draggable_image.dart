@@ -12,6 +12,7 @@ class DraggableImageWidget extends HookWidget {
   final double minScale;
   final double maxScale;
   final bool isDebug;
+  final BorderRadiusGeometry borderRadius;
 
   const DraggableImageWidget({
     super.key,
@@ -23,6 +24,7 @@ class DraggableImageWidget extends HookWidget {
     this.minScale = 0.5,
     this.maxScale = 3.0,
     this.isDebug = false,
+    this.borderRadius = BorderRadius.zero,
   });
 
   // วาดรูปอย่างเดียว
@@ -72,10 +74,7 @@ class DraggableImageWidget extends HookWidget {
             errorBuilder: (_, __, ___) => _errorBox(imageWidth, imageHeight),
           );
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: imageWidget,
-    );
+    return ClipRRect(borderRadius: borderRadius, child: imageWidget);
   }
 
   @override
