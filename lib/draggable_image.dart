@@ -13,6 +13,7 @@ class DraggableImageWidget extends HookWidget {
   final double maxScale;
   final bool isDebug;
   final BorderRadiusGeometry borderRadius;
+  final ValueChanged<bool>? onGestureActiveChanged;
 
   const DraggableImageWidget({
     super.key,
@@ -25,7 +26,10 @@ class DraggableImageWidget extends HookWidget {
     this.maxScale = 3.0,
     this.isDebug = false,
     this.borderRadius = BorderRadius.zero,
+    this.onGestureActiveChanged, // NEW
   });
+
+  void _notifyLock(bool active) => onGestureActiveChanged?.call(active);
 
   // วาดรูปอย่างเดียว
   Widget _buildImageOnly(BuildContext context) {
@@ -80,7 +84,7 @@ class DraggableImageWidget extends HookWidget {
   @override
   Widget build(BuildContext context) {
     // ---------- states ----------
-    final position = useState(Offset.zero);
+    final position = useState(const Offset(0, 0));
     final scale = useState(1.0);
     final isDragging = useState(false);
     final touchCount = useState(0);
@@ -94,10 +98,17 @@ class DraggableImageWidget extends HookWidget {
     final initialFocalPoint = useRef(Offset.zero);
     final hadTwoFingers = useRef(false);
 
+    // Track actual pointer count
+    final pointerCount = useState(0);
+    final pointerPositions = useState<Map<int, Offset>>({});
+
     // ---------- overlay control ----------
     final layerLink = useMemoized(() => LayerLink(), const []);
+    final targetKey = useMemoized(() => GlobalKey(), const []);
     final overlayEntryRef = useRef<OverlayEntry?>(null);
     final inOverlay = useState(false);
+    final overlayRect = useState<Rect?>(null);
+    final initialFocalGlobal = useRef<Offset?>(null);
 
     // ---------- animation ----------
     final controller = useAnimationController(duration: animationDuration);
@@ -112,6 +123,7 @@ class DraggableImageWidget extends HookWidget {
       overlayEntryRef.value?.remove();
       overlayEntryRef.value = null;
       inOverlay.value = false;
+      _notifyLock(false); // NEW: ปลดล็อก scroll parent
     }
 
     useEffect(() {
@@ -122,14 +134,14 @@ class DraggableImageWidget extends HookWidget {
           position.value = pt.evaluate(curved);
           scale.value = st.evaluate(curved);
         }
-        // ไม่ต้อง markNeedsBuild ระหว่างอนิเมชันเพราะ AnimatedBuilder จะทำให้เอง
       }
 
       void onStatus(AnimationStatus status) {
         if (status == AnimationStatus.completed) {
           position.value = originalPosition;
           scale.value = originalScale;
-          if (inOverlay.value) removeOverlay();
+          if (inOverlay.value)
+            removeOverlay(); // removeOverlay จะ _notifyLock(false)
         }
       }
 
@@ -154,37 +166,98 @@ class DraggableImageWidget extends HookWidget {
       controller.forward(from: 0);
     }
 
+    // ⬇️ เปลี่ยนวิธีวาง Overlay: ให้ overlay เป็นแค่ “ภาพเงา” ที่ตามตำแหน่ง/สเกลเดิม
+    //    และไม่รับ gesture ใด ๆ เพื่อให้ gesture ยังอยู่ที่ widget เดิม
+    Rect? _measureTargetRect() {
+      final ctx = targetKey.currentContext;
+      if (ctx == null) return null;
+      final box = ctx.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) return null;
+      final topLeft = box.localToGlobal(Offset.zero);
+      return topLeft & box.size;
+    }
+
+    Offset _twoFingerCenter(Map<int, Offset> positions) {
+      if (positions.isEmpty) return Offset.zero;
+      var sum = const Offset(0, 0);
+      positions.values.forEach((p) => sum += p);
+      return sum / positions.length.toDouble();
+    }
+
     void _insertOverlay() {
       if (overlayEntryRef.value != null) return;
 
+      // วัดกรอบเดิม
+      final measured = _measureTargetRect();
+      overlayRect.value = measured; // อาจเป็น null ได้
+
       overlayEntryRef.value = OverlayEntry(
-        builder: (_) => Positioned.fill(
-          child: IgnorePointer(
+        builder: (overlayContext) {
+          // เตรียมวิดเจ็ตภาพ (ไม่รับทัช)
+          final ghost = IgnorePointer(
             ignoring: true,
-            child: CompositedTransformFollower(
-              link: layerLink,
-              showWhenUnlinked: false,
-              // จุดสำคัญ: ใช้ AnimatedBuilder ให้ overlay รีเฟรชทุกเฟรมของ controller
-              child: AnimatedBuilder(
-                animation: controller,
-                builder: (context, child) {
-                  return Transform(
-                    alignment: Alignment.center,
-                    transform: Matrix4.identity()
-                      ..translate(position.value.dx, position.value.dy)
-                      ..scale(scale.value),
-                    child: child,
-                  );
-                },
-                child: _buildImageOnly(context),
+            child: AnimatedBuilder(
+              animation: controller,
+              builder: (context, child) {
+                return Transform(
+                  alignment: Alignment.center,
+                  transform: Matrix4.identity()
+                    ..translate(position.value.dx, position.value.dy)
+                    ..scale(scale.value),
+                  child: child,
+                );
+              },
+              child: _buildImageOnly(context),
+            ),
+          );
+
+          // กำหนดตำแหน่ง: ถ้าวัด rect ได้ → วางทับที่เดิม
+          // ถ้าวัดไม่ได้ → fallback จัดกลางที่ focal point
+          Widget ghostPositioned;
+          if (overlayRect.value != null) {
+            final r = overlayRect.value!;
+            ghostPositioned = Positioned.fromRect(rect: r, child: ghost);
+          } else {
+            // Fallback: จัดกลางภาพที่จุดกึ่งกลางสองนิ้ว
+            // ถ้าอยากแม่นยำ ควรวัดขนาดภาพจริงจาก RenderBox ของ _buildImageOnly
+            // ที่นี่จะเดาจากขนาดกรอบของ target (ถ้าวัดไม่ได้จริง ๆ กำหนดไซส์ประมาณการ)
+            final estimateSize = Size(imageWidth, imageHeight);
+            final center = initialFocalGlobal.value ?? const Offset(0, 0);
+            ghostPositioned = Positioned(
+              left: center.dx - estimateSize.width / 2,
+              top: center.dy - estimateSize.height / 2,
+              width: estimateSize.width,
+              height: estimateSize.height,
+              child: ghost,
+            );
+          }
+
+          return Positioned.fill(
+            child: Material(
+              type: MaterialType.transparency,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // ฉากหลัง: แตะเพื่อตีกลับ
+                  Positioned.fill(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => animateBackToOrigin(),
+                      child: Container(color: Colors.black.withOpacity(0.5)),
+                    ),
+                  ),
+                  // ภาพเงาในตำแหน่งที่คำนวณแล้ว
+                  ghostPositioned,
+                ],
               ),
             ),
-          ),
-        ),
+          );
+        },
       );
 
       Overlay.of(context, rootOverlay: true).insert(overlayEntryRef.value!);
       inOverlay.value = true;
+      _notifyLock(true);
     }
 
     // ---------- ตัวรับ gesture ----------
@@ -194,52 +267,91 @@ class DraggableImageWidget extends HookWidget {
         transform: Matrix4.identity()
           ..translate(position.value.dx, position.value.dy)
           ..scale(scale.value),
-        child: GestureDetector(
-          onScaleStart: (details) {
-            startPosition.value = position.value;
-            startScale.value = scale.value;
-            initialFocalPoint.value = details.focalPoint;
-            controller.stop();
-          },
-          onScaleUpdate: (details) {
-            touchCount.value = details.pointerCount;
+        child: Listener(
+          behavior: HitTestBehavior.opaque,
+          onPointerDown: (event) {
+            final newPositions = Map<int, Offset>.from(pointerPositions.value);
+            newPositions[event.pointer] = event.position; // global position
+            pointerPositions.value = newPositions;
+            pointerCount.value = newPositions.length;
+            touchCount.value = newPositions.length;
 
-            if (details.pointerCount >= 2) {
+            if (newPositions.length >= 2 && !inOverlay.value) {
               hadTwoFingers.value = true;
               isDragging.value = true;
 
-              if (!inOverlay.value) _insertOverlay();
+              // จับจุดกึ่งกลางสองนิ้ว (global) + วัดกรอบเดิม
+              initialFocalGlobal.value = _twoFingerCenter(newPositions);
+              overlayRect.value = _measureTargetRect();
 
-              final delta = details.focalPoint - initialFocalPoint.value;
-              position.value = startPosition.value + delta;
-
-              final next = (startScale.value * details.scale).clamp(
-                minScale,
-                maxScale,
-              );
-              scale.value = next.toDouble();
-
-              // ตอนลากด้วยมือ (ไม่ได้ใช้ controller) ต้องสั่ง overlay ให้ rebuild
-              overlayEntryRef.value?.markNeedsBuild();
-            } else {
-              if (hadTwoFingers.value) {
-                hadTwoFingers.value = false;
-                isDragging.value = false;
-                animateBackToOrigin(); // overlay จะ animate กลับอย่างลื่นด้วย AnimatedBuilder
-              }
+              startPosition.value = position.value;
+              startScale.value = scale.value;
+              controller.stop();
+              _insertOverlay();
             }
           },
-          onScaleEnd: (_) {
-            isDragging.value = false;
-            touchCount.value = 0;
-            if (position.value != originalPosition ||
-                scale.value != originalScale) {
+          onPointerUp: (event) {
+            final newPositions = Map<int, Offset>.from(pointerPositions.value);
+            newPositions.remove(event.pointer);
+            pointerPositions.value = newPositions;
+            pointerCount.value = newPositions.length;
+            touchCount.value = newPositions.length;
+
+            if (newPositions.length < 2 && hadTwoFingers.value) {
+              hadTwoFingers.value = false;
+              isDragging.value = false;
               animateBackToOrigin();
-            } else {
-              if (inOverlay.value) removeOverlay();
             }
           },
-          child: _buildImageOnly(context),
+          onPointerCancel: (event) {
+            final newPositions = Map<int, Offset>.from(pointerPositions.value);
+            newPositions.remove(event.pointer);
+            pointerPositions.value = newPositions;
+            pointerCount.value = newPositions.length;
+            touchCount.value = newPositions.length;
+          },
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onScaleStart: (details) {
+              if (pointerCount.value >= 2) {
+                startPosition.value = position.value;
+                startScale.value = scale.value;
+                initialFocalPoint.value = details
+                    .focalPoint; // local focal (ไม่จำเป็นต้องใช้กับ overlay ตรงนี้)
+                controller.stop();
+                if (!inOverlay.value) {
+                  // เผื่อกรณีเริ่มท่า scale ใหม่จากระบบ
+                  initialFocalGlobal.value = _twoFingerCenter(
+                    pointerPositions.value,
+                  );
+                  overlayRect.value = _measureTargetRect();
+                  _insertOverlay();
+                }
+              }
+            },
+            onScaleUpdate: (details) {
+              if (pointerCount.value >= 2) {
+                final delta = details.focalPoint - initialFocalPoint.value;
+                position.value = startPosition.value + delta;
+
+                final next = (startScale.value * details.scale).clamp(
+                  minScale,
+                  maxScale,
+                );
+                scale.value = next.toDouble();
+
+                overlayEntryRef.value?.markNeedsBuild();
+              }
+            },
+            onScaleEnd: (_) {
+              if (position.value != Offset.zero || scale.value != 1.0) {
+                animateBackToOrigin();
+              } else if (inOverlay.value) {
+                removeOverlay();
+              }
+            },
+            child: _buildImageOnly(context),
+          ),
         ),
       );
     }
@@ -251,7 +363,11 @@ class DraggableImageWidget extends HookWidget {
           link: layerLink,
           child: Opacity(
             opacity: inOverlay.value ? 0.0 : 1.0,
-            child: _buildInteractive(),
+            // ใส่ key ตรงนี้เพื่อให้วัดกรอบของ "รูปเดิม"
+            child: KeyedSubtree(
+              key: targetKey, // NEW
+              child: _buildInteractive(),
+            ),
           ),
         ),
         if (isDebug)
