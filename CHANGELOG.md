@@ -1,3 +1,7 @@
+## 0.1.4 - 2025-11-03
+- Update dependencies and improve overall performance.
+- Bug fixes and stability improvements.
+
 ## 0.1.3 - 2023-11-03
 - feat: Make DraggableImageWidget's border radius customizable (`borderRadius`).
 
