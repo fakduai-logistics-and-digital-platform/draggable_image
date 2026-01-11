@@ -5,7 +5,7 @@ A Flutter widget for dragging & pinch-to-zoom images with a smooth snap-back ani
 
 <div align="center">
 
-![image](example.gif)
+<video src="example.webm" controls />
 
 </div>
 
