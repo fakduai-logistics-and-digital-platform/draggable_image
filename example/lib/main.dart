@@ -8,9 +8,13 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       title: 'draggable_image example',
-      home: HomePage(),
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        useMaterial3: true,
+      ),
+      home: const HomePage(),
     );
   }
 }
@@ -23,33 +27,88 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  bool _lockScroll = false; // ถูกสลับจาก onGestureActiveChanged
+  bool _enableZoom = true;
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 1)),
+    );
+  }
+
+  void _showOptionsMenu() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.save_alt),
+              title: const Text('Save Image'),
+              onTap: () {
+                Navigator.pop(context);
+                _showSnackBar('Save image tapped!');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.share),
+              title: const Text('Share Image'),
+              onTap: () {
+                Navigator.pop(context);
+                _showSnackBar('Share image tapped!');
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('draggable_image example')),
-      body: SingleChildScrollView(
-        physics: _lockScroll
-            ? const NeverScrollableScrollPhysics()
-            : const BouncingScrollPhysics(),
-        child: Container(
-          color: Colors.white,
-          child: DraggableImageWidget(
-            imageWidth: double.infinity,
-            imageHeight: 900,
-            imagePath: 'https://picsum.photos/900',
-            isNetworkImage: true,
-            isDebug: true,
-            borderRadius: BorderRadius.circular(0),
-            fit: BoxFit.contain, // optional
-            fitDoubleTap: BoxFit.fitHeight, // optional
-            fitToggleCurve: Curves.easeOutCubic, // optional
-
-            onGestureActiveChanged: (active) {
-              setState(() => _lockScroll = active);
-            },
+      appBar: AppBar(
+        title: const Text('draggable_image v0.1.6'),
+        actions: [
+          IconButton(
+            icon: Icon(_enableZoom ? Icons.zoom_in : Icons.zoom_out_map),
+            tooltip: _enableZoom ? 'Zoom Enabled' : 'Zoom Disabled',
+            onPressed: () => setState(() => _enableZoom = !_enableZoom),
           ),
+        ],
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            DraggableImageWidget(
+              imageWidth: 300,
+              imageHeight: 300,
+              imagePath: 'https://picsum.photos/600',
+              isNetworkImage: true,
+              isDebug: true,
+              borderRadius: BorderRadius.circular(16),
+              fit: BoxFit.cover,
+              fitDoubleTap: BoxFit.contain,
+              enableZoom: _enableZoom,
+
+              // New features! 🎉
+              onTap: () => _showSnackBar('Image tapped! 👆'),
+              onLongPress: _showOptionsMenu,
+              overlayColor: Colors.deepPurple,
+              overlayOpacity: 0.7,
+            ),
+            const SizedBox(height: 24),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                '• Tap = Snackbar\n• Long press = Menu\n• Double tap = Toggle fit\n• Pinch = Zoom (2 fingers)',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+            ),
+          ],
         ),
       ),
     );

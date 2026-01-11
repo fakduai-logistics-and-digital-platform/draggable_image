@@ -20,6 +20,29 @@ class DraggableImageWidget extends HookWidget {
   final Duration fitToggleDuration;
   final Curve fitToggleCurve;
 
+  /// Callback when the image is tapped (single tap).
+  final VoidCallback? onTap;
+
+  /// Callback when the image is long-pressed.
+  final VoidCallback? onLongPress;
+
+  /// Background color of the overlay when zooming. Default is [Colors.black].
+  final Color overlayColor;
+
+  /// Opacity of the overlay background. Default is 0.5.
+  final double overlayOpacity;
+
+  /// Custom placeholder widget shown while loading image.
+  /// If null, uses default skeleton shimmer effect.
+  final Widget? placeholderWidget;
+
+  /// Custom error widget shown when image fails to load.
+  /// If null, uses default error icon.
+  final Widget? errorWidget;
+
+  /// Whether zoom gesture is enabled. Default is true.
+  final bool enableZoom;
+
   const DraggableImageWidget({
     super.key,
     required this.imagePath,
@@ -36,6 +59,13 @@ class DraggableImageWidget extends HookWidget {
     this.fitToggleDuration = const Duration(milliseconds: 220),
     this.fitToggleCurve = Curves.easeOutCubic,
     this.onGestureActiveChanged,
+    this.onTap,
+    this.onLongPress,
+    this.overlayColor = Colors.black,
+    this.overlayOpacity = 0.5,
+    this.placeholderWidget,
+    this.errorWidget,
+    this.enableZoom = true,
   });
 
   void _notifyLock(bool active) => onGestureActiveChanged?.call(active);
@@ -47,43 +77,48 @@ class DraggableImageWidget extends HookWidget {
             width: imageWidth,
             height: imageHeight,
             fit: activeFit,
-            placeholder: (context, url) => Container(
-              width: imageWidth,
-              height: imageHeight,
-              color: Colors.grey[100],
-              child: Skeletonizer.zone(
-                effect: const ShimmerEffect(
-                  baseColor: Color(0xFFE0E0E0),
-                  highlightColor: Color(0xFFF5F5F5),
-                  duration: Duration(seconds: 1),
-                ),
-                child: Container(
+            placeholder: (context, url) =>
+                placeholderWidget ??
+                Container(
                   width: imageWidth,
                   height: imageHeight,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(4),
+                  color: Colors.grey[100],
+                  child: Skeletonizer.zone(
+                    effect: const ShimmerEffect(
+                      baseColor: Color(0xFFE0E0E0),
+                      highlightColor: Color(0xFFF5F5F5),
+                      duration: Duration(seconds: 1),
+                    ),
+                    child: Container(
+                      width: imageWidth,
+                      height: imageHeight,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-            errorWidget: (context, url, error) => Container(
-              width: imageWidth,
-              height: imageHeight,
-              color: Colors.grey[300],
-              child: const Icon(
-                Icons.error_outline,
-                color: Colors.grey,
-                size: 32,
-              ),
-            ),
+            errorWidget: (context, url, error) =>
+                this.errorWidget ??
+                Container(
+                  width: imageWidth,
+                  height: imageHeight,
+                  color: Colors.grey[300],
+                  child: const Icon(
+                    Icons.error_outline,
+                    color: Colors.grey,
+                    size: 32,
+                  ),
+                ),
           )
         : Image.asset(
             imagePath,
             width: imageWidth,
             height: imageHeight,
             fit: activeFit,
-            errorBuilder: (_, __, ___) => _errorBox(imageWidth, imageHeight),
+            errorBuilder: (_, __, ___) =>
+                errorWidget ?? _errorBox(imageWidth, imageHeight),
           );
   }
 
@@ -91,25 +126,29 @@ class DraggableImageWidget extends HookWidget {
     final child = _buildRawImage(activeFit);
     return ClipRRect(
       borderRadius: borderRadius,
-      child: AnimatedSwitcher(
-        duration: fitToggleDuration,
-        switchInCurve: fitToggleCurve,
-        switchOutCurve: fitToggleCurve,
-        layoutBuilder: (currentChild, previousChildren) => Stack(
-          fit: StackFit.expand,
-          children: <Widget>[
-            ...previousChildren,
-            if (currentChild != null) currentChild,
-          ],
-        ),
-        transitionBuilder: (child, anim) => FadeTransition(
-          opacity: anim,
-          child: ScaleTransition(
-            scale: Tween<double>(begin: 0.98, end: 1.0).animate(anim),
-            child: child,
+      child: SizedBox(
+        width: imageWidth,
+        height: imageHeight,
+        child: AnimatedSwitcher(
+          duration: fitToggleDuration,
+          switchInCurve: fitToggleCurve,
+          switchOutCurve: fitToggleCurve,
+          layoutBuilder: (currentChild, previousChildren) => Stack(
+            fit: StackFit.passthrough,
+            children: <Widget>[
+              ...previousChildren,
+              if (currentChild != null) currentChild,
+            ],
           ),
+          transitionBuilder: (child, anim) => FadeTransition(
+            opacity: anim,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.98, end: 1.0).animate(anim),
+              child: child,
+            ),
+          ),
+          child: KeyedSubtree(key: ValueKey(activeFit), child: child),
         ),
-        child: KeyedSubtree(key: ValueKey(activeFit), child: child),
       ),
     );
   }
@@ -304,7 +343,8 @@ class DraggableImageWidget extends HookWidget {
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: () => _animateBackToOrigin(),
-                      child: Container(color: Colors.black.withOpacity(0.5)),
+                      child: Container(
+                          color: overlayColor.withOpacity(overlayOpacity)),
                     ),
                   ),
                   ghostPositioned,
@@ -337,7 +377,7 @@ class DraggableImageWidget extends HookWidget {
             safeSet<int>(pointerCount, newPositions.length);
             safeSet<int>(touchCount, newPositions.length);
 
-            if (newPositions.length >= 2 && !inOverlay.value) {
+            if (enableZoom && newPositions.length >= 2 && !inOverlay.value) {
               hadTwoFingers.value = true;
               safeSet<bool>(isDragging, true);
 
@@ -374,6 +414,8 @@ class DraggableImageWidget extends HookWidget {
           },
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            onLongPress: onLongPress,
             onDoubleTap: () {
               if (fitDoubleTap != null) {
                 final baseFit = fit;
@@ -385,6 +427,7 @@ class DraggableImageWidget extends HookWidget {
               }
             },
             onScaleStart: (details) {
+              if (!enableZoom) return;
               if (!isMounted() || disposedRef.value) return;
               if (pointerCount.value >= 2) {
                 startPosition.value = position.value;
@@ -401,6 +444,7 @@ class DraggableImageWidget extends HookWidget {
               }
             },
             onScaleUpdate: (details) {
+              if (!enableZoom) return;
               if (!isMounted() || disposedRef.value) return;
               if (pointerCount.value >= 2) {
                 final delta = details.focalPoint - initialFocalPoint.value;

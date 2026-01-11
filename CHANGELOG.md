@@ -1,3 +1,11 @@
+## 0.1.6 - 2026-01-11
+- ✨ feat: Add `onTap` callback for single tap gesture
+- ✨ feat: Add `onLongPress` callback for long press gesture
+- ✨ feat: Add `overlayColor` and `overlayOpacity` for customizing zoom overlay background
+- ✨ feat: Add `placeholderWidget` for custom loading placeholder
+- ✨ feat: Add `errorWidget` for custom error display
+- ✨ feat: Add `enableZoom` flag to enable/disable zoom gesture dynamically
+
 ## 0.1.5 - 2025-11-03
 - ✨ feat: Add customizable BoxFit options with animated transitions
   - New `fit` parameter for default image fitting (default: BoxFit.contain)
