@@ -1,3 +1,13 @@
+## 0.1.7 - 2026-01-12
+- ✨ feat: Add `DraggableImageWidget.network()` factory constructor for network images
+- ✨ feat: Add `DraggableImageWidget.asset()` factory constructor for asset images
+- ✨ feat: Add `DraggableImageWidget.memory()` factory constructor for `Uint8List` images
+- ✨ feat: Add `DraggableImageWidget.file()` factory constructor for `File` images
+- ✨ feat: Add `DraggableImageWidget.provider()` factory constructor for custom `ImageProvider`
+- ✨ feat: Add `ImageSourceType` enum to identify the image source type
+- ♻️ refactor: Improved code structure with `_buildDefaultPlaceholder()` and `_buildDefaultError()` methods
+- ⚠️ deprecate: `isNetworkImage` parameter is now deprecated, use named constructors instead
+
 ## 0.1.6 - 2026-01-11
 - ✨ feat: Add `onTap` callback for single tap gesture
 - ✨ feat: Add `onLongPress` callback for long press gesture

@@ -1,14 +1,51 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui' show lerpDouble;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 
+/// Enum representing the source type of the image.
+enum ImageSourceType {
+  /// Image loaded from network URL (cached).
+  network,
+
+  /// Image loaded from asset bundle.
+  asset,
+
+  /// Image loaded from memory (Uint8List).
+  memory,
+
+  /// Image loaded from a file on disk.
+  file,
+
+  /// Image loaded from a custom ImageProvider.
+  provider,
+}
+
 class DraggableImageWidget extends HookWidget {
-  final String imagePath;
+  /// Path or URL of the image. Used for [ImageSourceType.network] and [ImageSourceType.asset].
+  final String? imagePath;
+
+  /// Raw image bytes. Used for [ImageSourceType.memory].
+  final Uint8List? imageBytes;
+
+  /// File object for the image. Used for [ImageSourceType.file].
+  final File? imageFile;
+
+  /// Custom ImageProvider. Used for [ImageSourceType.provider].
+  final ImageProvider? imageProvider;
+
+  /// The type of image source.
+  final ImageSourceType sourceType;
+
   final double imageWidth;
   final double imageHeight;
+
+  @Deprecated('Use sourceType instead. Will be removed in future versions.')
   final bool isNetworkImage;
+
   final Duration animationDuration;
   final double minScale;
   final double maxScale;
@@ -43,9 +80,13 @@ class DraggableImageWidget extends HookWidget {
   /// Whether zoom gesture is enabled. Default is true.
   final bool enableZoom;
 
+  /// Creates a DraggableImageWidget with a path (asset or network).
+  ///
+  /// Use [isNetworkImage] to specify whether the path is a network URL or asset path.
+  /// Consider using [DraggableImageWidget.network] or [DraggableImageWidget.asset] instead.
   const DraggableImageWidget({
     super.key,
-    required this.imagePath,
+    required String this.imagePath,
     this.imageWidth = 200,
     this.imageHeight = 200,
     this.isNetworkImage = false,
@@ -66,60 +107,312 @@ class DraggableImageWidget extends HookWidget {
     this.placeholderWidget,
     this.errorWidget,
     this.enableZoom = true,
-  });
+  })  : sourceType =
+            isNetworkImage ? ImageSourceType.network : ImageSourceType.asset,
+        imageBytes = null,
+        imageFile = null,
+        imageProvider = null;
+
+  /// Creates a DraggableImageWidget from a network URL.
+  ///
+  /// The image will be cached using [CachedNetworkImage].
+  ///
+  /// Example:
+  /// ```dart
+  /// DraggableImageWidget.network(
+  ///   'https://example.com/image.jpg',
+  ///   imageWidth: 300,
+  ///   imageHeight: 200,
+  /// )
+  /// ```
+  const DraggableImageWidget.network(
+    String url, {
+    super.key,
+    this.imageWidth = 200,
+    this.imageHeight = 200,
+    this.animationDuration = const Duration(milliseconds: 300),
+    this.minScale = 0.5,
+    this.maxScale = 3.0,
+    this.isDebug = false,
+    this.borderRadius = BorderRadius.zero,
+    this.fit = BoxFit.contain,
+    this.fitDoubleTap,
+    this.fitToggleDuration = const Duration(milliseconds: 220),
+    this.fitToggleCurve = Curves.easeOutCubic,
+    this.onGestureActiveChanged,
+    this.onTap,
+    this.onLongPress,
+    this.overlayColor = Colors.black,
+    this.overlayOpacity = 0.5,
+    this.placeholderWidget,
+    this.errorWidget,
+    this.enableZoom = true,
+  })  : imagePath = url,
+        sourceType = ImageSourceType.network,
+        isNetworkImage = true,
+        imageBytes = null,
+        imageFile = null,
+        imageProvider = null;
+
+  /// Creates a DraggableImageWidget from an asset path.
+  ///
+  /// Example:
+  /// ```dart
+  /// DraggableImageWidget.asset(
+  ///   'assets/images/photo.png',
+  ///   imageWidth: 300,
+  ///   imageHeight: 200,
+  /// )
+  /// ```
+  const DraggableImageWidget.asset(
+    String assetPath, {
+    super.key,
+    this.imageWidth = 200,
+    this.imageHeight = 200,
+    this.animationDuration = const Duration(milliseconds: 300),
+    this.minScale = 0.5,
+    this.maxScale = 3.0,
+    this.isDebug = false,
+    this.borderRadius = BorderRadius.zero,
+    this.fit = BoxFit.contain,
+    this.fitDoubleTap,
+    this.fitToggleDuration = const Duration(milliseconds: 220),
+    this.fitToggleCurve = Curves.easeOutCubic,
+    this.onGestureActiveChanged,
+    this.onTap,
+    this.onLongPress,
+    this.overlayColor = Colors.black,
+    this.overlayOpacity = 0.5,
+    this.placeholderWidget,
+    this.errorWidget,
+    this.enableZoom = true,
+  })  : imagePath = assetPath,
+        sourceType = ImageSourceType.asset,
+        isNetworkImage = false,
+        imageBytes = null,
+        imageFile = null,
+        imageProvider = null;
+
+  /// Creates a DraggableImageWidget from raw image bytes (Uint8List).
+  ///
+  /// Useful for images from camera, file picker, or any in-memory source.
+  ///
+  /// Example:
+  /// ```dart
+  /// final bytes = await file.readAsBytes();
+  /// DraggableImageWidget.memory(
+  ///   bytes,
+  ///   imageWidth: 300,
+  ///   imageHeight: 200,
+  /// )
+  /// ```
+  const DraggableImageWidget.memory(
+    Uint8List bytes, {
+    super.key,
+    this.imageWidth = 200,
+    this.imageHeight = 200,
+    this.animationDuration = const Duration(milliseconds: 300),
+    this.minScale = 0.5,
+    this.maxScale = 3.0,
+    this.isDebug = false,
+    this.borderRadius = BorderRadius.zero,
+    this.fit = BoxFit.contain,
+    this.fitDoubleTap,
+    this.fitToggleDuration = const Duration(milliseconds: 220),
+    this.fitToggleCurve = Curves.easeOutCubic,
+    this.onGestureActiveChanged,
+    this.onTap,
+    this.onLongPress,
+    this.overlayColor = Colors.black,
+    this.overlayOpacity = 0.5,
+    this.placeholderWidget,
+    this.errorWidget,
+    this.enableZoom = true,
+  })  : imageBytes = bytes,
+        sourceType = ImageSourceType.memory,
+        isNetworkImage = false,
+        imagePath = null,
+        imageFile = null,
+        imageProvider = null;
+
+  /// Creates a DraggableImageWidget from a File object.
+  ///
+  /// Example:
+  /// ```dart
+  /// final file = File('/path/to/image.jpg');
+  /// DraggableImageWidget.file(
+  ///   file,
+  ///   imageWidth: 300,
+  ///   imageHeight: 200,
+  /// )
+  /// ```
+  const DraggableImageWidget.file(
+    File file, {
+    super.key,
+    this.imageWidth = 200,
+    this.imageHeight = 200,
+    this.animationDuration = const Duration(milliseconds: 300),
+    this.minScale = 0.5,
+    this.maxScale = 3.0,
+    this.isDebug = false,
+    this.borderRadius = BorderRadius.zero,
+    this.fit = BoxFit.contain,
+    this.fitDoubleTap,
+    this.fitToggleDuration = const Duration(milliseconds: 220),
+    this.fitToggleCurve = Curves.easeOutCubic,
+    this.onGestureActiveChanged,
+    this.onTap,
+    this.onLongPress,
+    this.overlayColor = Colors.black,
+    this.overlayOpacity = 0.5,
+    this.placeholderWidget,
+    this.errorWidget,
+    this.enableZoom = true,
+  })  : imageFile = file,
+        sourceType = ImageSourceType.file,
+        isNetworkImage = false,
+        imagePath = null,
+        imageBytes = null,
+        imageProvider = null;
+
+  /// Creates a DraggableImageWidget from any ImageProvider.
+  ///
+  /// This gives you maximum flexibility for custom image sources.
+  ///
+  /// Example:
+  /// ```dart
+  /// DraggableImageWidget.provider(
+  ///   ResizeImage(
+  ///     NetworkImage('https://example.com/image.jpg'),
+  ///     width: 100,
+  ///   ),
+  ///   imageWidth: 300,
+  ///   imageHeight: 200,
+  /// )
+  /// ```
+  const DraggableImageWidget.provider(
+    ImageProvider provider, {
+    super.key,
+    this.imageWidth = 200,
+    this.imageHeight = 200,
+    this.animationDuration = const Duration(milliseconds: 300),
+    this.minScale = 0.5,
+    this.maxScale = 3.0,
+    this.isDebug = false,
+    this.borderRadius = BorderRadius.zero,
+    this.fit = BoxFit.contain,
+    this.fitDoubleTap,
+    this.fitToggleDuration = const Duration(milliseconds: 220),
+    this.fitToggleCurve = Curves.easeOutCubic,
+    this.onGestureActiveChanged,
+    this.onTap,
+    this.onLongPress,
+    this.overlayColor = Colors.black,
+    this.overlayOpacity = 0.5,
+    this.placeholderWidget,
+    this.errorWidget,
+    this.enableZoom = true,
+  })  : imageProvider = provider,
+        sourceType = ImageSourceType.provider,
+        isNetworkImage = false,
+        imagePath = null,
+        imageBytes = null,
+        imageFile = null;
 
   void _notifyLock(bool active) => onGestureActiveChanged?.call(active);
 
+  /// Builds the default placeholder widget with skeleton shimmer effect.
+  Widget _buildDefaultPlaceholder() {
+    return placeholderWidget ??
+        Container(
+          width: imageWidth,
+          height: imageHeight,
+          color: Colors.grey[100],
+          child: Skeletonizer.zone(
+            effect: const ShimmerEffect(
+              baseColor: Color(0xFFE0E0E0),
+              highlightColor: Color(0xFFF5F5F5),
+              duration: Duration(seconds: 1),
+            ),
+            child: Container(
+              width: imageWidth,
+              height: imageHeight,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+        );
+  }
+
+  /// Builds the default error widget.
+  Widget _buildDefaultError() {
+    return errorWidget ??
+        Container(
+          width: imageWidth,
+          height: imageHeight,
+          color: Colors.grey[300],
+          child: const Icon(
+            Icons.error_outline,
+            color: Colors.grey,
+            size: 32,
+          ),
+        );
+  }
+
   Widget _buildRawImage(BoxFit? activeFit) {
-    return isNetworkImage
-        ? CachedNetworkImage(
-            imageUrl: imagePath,
-            width: imageWidth,
-            height: imageHeight,
-            fit: activeFit,
-            placeholder: (context, url) =>
-                placeholderWidget ??
-                Container(
-                  width: imageWidth,
-                  height: imageHeight,
-                  color: Colors.grey[100],
-                  child: Skeletonizer.zone(
-                    effect: const ShimmerEffect(
-                      baseColor: Color(0xFFE0E0E0),
-                      highlightColor: Color(0xFFF5F5F5),
-                      duration: Duration(seconds: 1),
-                    ),
-                    child: Container(
-                      width: imageWidth,
-                      height: imageHeight,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ),
-                ),
-            errorWidget: (context, url, error) =>
-                this.errorWidget ??
-                Container(
-                  width: imageWidth,
-                  height: imageHeight,
-                  color: Colors.grey[300],
-                  child: const Icon(
-                    Icons.error_outline,
-                    color: Colors.grey,
-                    size: 32,
-                  ),
-                ),
-          )
-        : Image.asset(
-            imagePath,
-            width: imageWidth,
-            height: imageHeight,
-            fit: activeFit,
-            errorBuilder: (_, __, ___) =>
-                errorWidget ?? _errorBox(imageWidth, imageHeight),
-          );
+    switch (sourceType) {
+      case ImageSourceType.network:
+        return CachedNetworkImage(
+          imageUrl: imagePath!,
+          width: imageWidth,
+          height: imageHeight,
+          fit: activeFit,
+          placeholder: (context, url) => _buildDefaultPlaceholder(),
+          errorWidget: (context, url, error) => _buildDefaultError(),
+        );
+
+      case ImageSourceType.asset:
+        return Image.asset(
+          imagePath!,
+          width: imageWidth,
+          height: imageHeight,
+          fit: activeFit,
+          errorBuilder: (_, __, ___) => _buildDefaultError(),
+        );
+
+      case ImageSourceType.memory:
+        return Image.memory(
+          imageBytes!,
+          width: imageWidth,
+          height: imageHeight,
+          fit: activeFit,
+          errorBuilder: (_, __, ___) => _buildDefaultError(),
+        );
+
+      case ImageSourceType.file:
+        return Image.file(
+          imageFile!,
+          width: imageWidth,
+          height: imageHeight,
+          fit: activeFit,
+          errorBuilder: (_, __, ___) => _buildDefaultError(),
+        );
+
+      case ImageSourceType.provider:
+        return Image(
+          image: imageProvider!,
+          width: imageWidth,
+          height: imageHeight,
+          fit: activeFit,
+          errorBuilder: (_, __, ___) => _buildDefaultError(),
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return _buildDefaultPlaceholder();
+          },
+        );
+    }
   }
 
   Widget _buildImageOnly(BuildContext context, BoxFit? activeFit) {
@@ -503,15 +796,6 @@ class DraggableImageWidget extends HookWidget {
             ),
           ),
       ],
-    );
-  }
-
-  static Widget _errorBox(double w, double h) {
-    return Container(
-      width: w,
-      height: h,
-      color: Colors.grey[300],
-      child: const Icon(Icons.error_outline, color: Colors.red, size: 50),
     );
   }
 }
